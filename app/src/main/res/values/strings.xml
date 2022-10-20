@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">PR Converter</string>
+    <string name="width">Width</string>
+    <string name="height">Height</string>
+    <string name="format">Format</string>
+    <string name="bitrate">Bitrate</string>
+    <string name="fps">Fps</string>
+    <string name="sample_rate">Sample rate</string>
+    <string name="channels">Channels</string>
+    <string name="notification_id">PR Converter Notifications</string>
+    <string name="show_video_stream">Show video stream</string>
+    <string name="hide_video_stream">Hide video stream</string>
+    <string name="show_audio_stream">Show audio stream</string>
+    <string name="hide_audio_stream">Hide audio stream</string>
+    <string name="delete_video_stream">Delete video stream</string>
+    <string name="delete_audio_stream">Delete audio stream</string>
+</resources>
