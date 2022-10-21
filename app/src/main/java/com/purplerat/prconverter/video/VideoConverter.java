@@ -1,4 +1,4 @@
-package com.purplerat.prconverter.audio;
+package com.purplerat.prconverter.video;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -9,35 +9,46 @@ import android.webkit.MimeTypeMap;
 
 import com.arthenica.ffmpegkit.FFmpegKit;
 import com.arthenica.ffmpegkit.Statistics;
+import com.purplerat.prconverter.audio.AudioStream;
 
 import java.io.File;
 
-public class AudioConverter implements Runnable{
+public class VideoConverter implements Runnable{
     private final Context context;
-    private final AudioConvertingPack pack;
-    private final AudioConverterCallback audioConverterCallback;
-    public AudioConverter(final Context context,AudioConvertingPack audioConvertingPack, final AudioConverterCallback audioConverterCallback){
+    private final VideoConvertingPack pack;
+    private final VideoConverterCallback videoConverterCallback;
+    public VideoConverter(final Context context,VideoConvertingPack audioConvertingPack, final VideoConverterCallback videoConverterCallback){
         this.context = context;
         this.pack = audioConvertingPack;
-        this.audioConverterCallback = audioConverterCallback;
+        this.videoConverterCallback = videoConverterCallback;
     }
     @Override
     public void run() {
-        audioConverterCallback.onComplete(convertAudio());
+        videoConverterCallback.onComplete(convertVideo());
     }
-    private File convertAudio(){
+    private File convertVideo(){
         String command;
-        AudioStream audioStream= pack.getAudioStream();
-        try {
-            command = String.format("-i \"%s\" -b:a %s -ar %s -ac %s \"%s\"",
+        VideoStream videoStream = pack.getVideoStream();
+        AudioStream audioStream = pack.getAudioStream();
+        if(audioStream == null){
+            command = String.format("-i \"%s\" -an -s %sx%s -r %s -b:v %s \"%s\"",
                     pack.getImportFile().getAbsolutePath(),
+                    videoStream.getWidth(),
+                    videoStream.getHeight(),
+                    videoStream.getFps(),
+                    videoStream.getBitrate(),
+                    pack.getExportFile().getAbsolutePath());
+        }else{
+            command = String.format("-i \"%s\" -s %sx%s -r %s -b:v %s -b:a %s -ar %s -ac %s \"%s\"",
+                    pack.getImportFile().getAbsolutePath(),
+                    videoStream.getWidth(),
+                    videoStream.getHeight(),
+                    videoStream.getFps(),
+                    videoStream.getBitrate(),
                     audioStream.getBitrate(),
                     audioStream.getSampleRate(),
                     audioStream.getChannel().getIntValue(),
                     pack.getExportFile().getAbsolutePath());
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
         }
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         retriever.setDataSource(context, Uri.fromFile(pack.getImportFile()));
@@ -50,10 +61,10 @@ public class AudioConverter implements Runnable{
                 waiter.notify();
             }
         }, log->
-            System.out.println(log.getMessage()),
-                statistics-> {
-                    int percent = Math.round(statistics.getTime() / time * 100.0f);
-                    audioConverterCallback.onProgress(percent);
+            System.out.println(log.getMessage())
+        , statistics-> {
+            int percent = Math.round(statistics.getTime() / time * 100.0f);
+            videoConverterCallback.onProgress(percent);
         });
         synchronized (waiter){
             try {
@@ -69,13 +80,14 @@ public class AudioConverter implements Runnable{
             MediaScannerConnection.scanFile(context,new String[]{pack.getExportFile().getPath()},new String[] {getMimeType(Uri.fromFile(pack.getExportFile()))},null);
             return pack.getExportFile();
         }
+
     }
     private String getMimeType(Uri uri){
         ContentResolver contentResolver = context.getContentResolver();
         MimeTypeMap mimeTypeMap = MimeTypeMap.getSingleton();
         return mimeTypeMap.getExtensionFromMimeType(contentResolver.getType(uri));
     }
-    public interface AudioConverterCallback{
+    public interface VideoConverterCallback{
         void onProgress(int progress);
         void onComplete(File file);
     }

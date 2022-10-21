@@ -1,14 +1,12 @@
 package com.purplerat.prconverter.audio;
 
-import android.net.Uri;
-
 import java.io.File;
 import java.io.Serializable;
 
 public class AudioConvertingPack implements Serializable {
     private final File importFile;
     private final File exportFile;
-    private AudioStream audioStream;
+    private final AudioStream audioStream;
     public AudioConvertingPack(final File importFile, AudioStream audioStream, final File exportFile){
         this.importFile = importFile;
         this.audioStream = audioStream;

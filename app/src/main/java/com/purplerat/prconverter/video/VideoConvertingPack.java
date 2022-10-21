@@ -1,7 +1,5 @@
 package com.purplerat.prconverter.video;
 
-import android.net.Uri;
-
 import com.purplerat.prconverter.audio.AudioStream;
 
 import java.io.File;

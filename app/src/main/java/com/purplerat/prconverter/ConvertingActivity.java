@@ -12,10 +12,10 @@ import android.view.View;
 import android.widget.ProgressBar;
 
 import com.google.android.material.snackbar.Snackbar;
-import com.purplerat.prconverter.audio.AudioConverter;
 import com.purplerat.prconverter.audio.AudioConvertingPack;
 import com.purplerat.prconverter.audio.AudioConvertingService;
 import com.purplerat.prconverter.video.VideoConvertingPack;
+import com.purplerat.prconverter.video.VideoConvertingService;
 
 import java.io.File;
 
@@ -43,13 +43,16 @@ public class ConvertingActivity extends AppCompatActivity {
         switch (action){
             case "audio":
                 AudioConvertingPack audioConvertingPack = (AudioConvertingPack) getIntent().getSerializableExtra("pack");
-                Intent intent = new Intent(this,AudioConvertingService.class);
-                intent.putExtra("pack",audioConvertingPack);
-                startService(intent);
+                Intent audioIntent = new Intent(this,AudioConvertingService.class);
+                audioIntent.putExtra("pack",audioConvertingPack);
+                startService(audioIntent);
                 break;
             case "video":
                 VideoConvertingPack videoConvertingPack = (VideoConvertingPack) getIntent().getSerializableExtra("pack");
-                System.out.println(videoConvertingPack.getAudioStream().getChannel());
+                Intent videoIntent = new Intent(this, VideoConvertingService.class);
+                videoIntent.putExtra("pack",videoConvertingPack);
+                startService(videoIntent);
+                break;
             case "resumption":
                 break;
             default:

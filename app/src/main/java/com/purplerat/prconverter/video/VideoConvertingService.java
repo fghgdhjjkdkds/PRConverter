@@ -1,4 +1,4 @@
-package com.purplerat.prconverter.audio;
+package com.purplerat.prconverter.video;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -18,7 +18,7 @@ import com.purplerat.prconverter.R;
 
 import java.io.File;
 
-public class AudioConvertingService extends Service {
+public class VideoConvertingService extends Service {
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
@@ -47,7 +47,7 @@ public class AudioConvertingService extends Service {
         final NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(getApplicationContext());
 
         final NotificationCompat.Builder notification = new NotificationCompat.Builder(getApplicationContext(),  getString(R.string.notification_id))
-                .setContentTitle("Converting audio")
+                .setContentTitle("Converting video")
                 .setProgress(100, 0, false)
                 .setSmallIcon(R.drawable.ic_baseline_refresh_24)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -60,9 +60,9 @@ public class AudioConvertingService extends Service {
                 .setOngoing(false);
 
         notificationManagerCompat.notify(notificationID, notification.build());
-        AudioConvertingPack audioConvertingPack = (AudioConvertingPack)intent.getSerializableExtra("pack");
-        if(audioConvertingPack != null){
-            new Thread(new AudioConverter(getApplicationContext(), audioConvertingPack, new AudioConverter.AudioConverterCallback() {
+        VideoConvertingPack videoConvertingPack = (VideoConvertingPack)intent.getSerializableExtra("pack");
+        if(videoConvertingPack != null){
+            new Thread(new VideoConverter(getApplicationContext(), videoConvertingPack, new VideoConverter.VideoConverterCallback() {
                 @Override
                 public void onProgress(int progress) {
                     notification.setProgress(100,progress,false);
@@ -95,16 +95,17 @@ public class AudioConvertingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         Intent broadcastIntent = new Intent();
-        broadcastIntent.setAction("restart_audio_converting_service");
+        broadcastIntent.setAction("restart_video_converting_service");
         broadcastIntent.setClass(this, AudioConvertingRestarter.class);
         this.sendBroadcast(broadcastIntent);
     }
 }
+
 class AudioConvertingRestarter extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(new Intent(context, AudioConvertingService.class));
+            context.startForegroundService(new Intent(context, VideoConvertingService.class));
         }
     }
 }

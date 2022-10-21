@@ -20,23 +20,13 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.purplerat.prconverter.R;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class AudioConverterDialog extends DialogFragment {
     private final boolean[] errors = new boolean[]{false,false};
-    private static final String[] AUDIO_FORMATS = {"mp3","m4a","aac","flac","ogg"};
-    private final static Map<String,AudioChannels> channelsMap = new HashMap<>();
     private int bitrate;
     private int sampleRate;
     private AudioChannels channel;
     private AudioFormats audioFormat;
     private final AudioConverterDialogCallback audioConverterDialogCallback;
-    static{
-
-        channelsMap.put("Mono",AudioChannels.MONO);
-        channelsMap.put("Stereo",AudioChannels.STEREO);
-    }
     public AudioConverterDialog(int bitrate,int sampleRate,AudioChannels channel,AudioFormats audioFormat,AudioConverterDialogCallback audioConverterDialogCallback){
         this.bitrate = bitrate;
         this.sampleRate =  sampleRate;
@@ -68,7 +58,7 @@ public class AudioConverterDialog extends DialogFragment {
         audio_dialog_format.setText(audioFormat.getValue());
 
         audio_dialog_channels.setAdapter(new ArrayAdapter<>(getActivity(), android.R.layout.simple_list_item_1,AudioChannels.getEnableChannels()));
-        audio_dialog_format.setAdapter(new ArrayAdapter<>(getActivity(), android.R.layout.simple_list_item_1,AUDIO_FORMATS));
+        audio_dialog_format.setAdapter(new ArrayAdapter<>(getActivity(), android.R.layout.simple_list_item_1,AudioFormats.getEnableAudioFormats()));
 
         dialog.setTitle("Convert audio");
         dialog.setView(rootView);
@@ -88,7 +78,7 @@ public class AudioConverterDialog extends DialogFragment {
                 }
                 bitrate = Integer.parseInt(audio_dialog_bitrate_text.getText().toString());
                 sampleRate = Integer.parseInt(audio_dialog_sample_rate_text.getText().toString());
-                channel = channelsMap.get(audio_dialog_channels.getText().toString());
+                channel = AudioChannelsMap.getAudioChannel(audio_dialog_channels.getText().toString());
                 audioFormat = AudioFormatMap.getAudioFormat(audio_dialog_format.getText().toString());
                 dismiss();
             });

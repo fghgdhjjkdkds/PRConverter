@@ -19,12 +19,10 @@ import android.content.pm.PackageManager;
 import android.graphics.BitmapFactory;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.provider.DocumentsContract;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
@@ -33,7 +31,6 @@ import android.widget.Toast;
 import com.arthenica.ffmpegkit.FFprobeKit;
 import com.google.android.material.snackbar.Snackbar;
 import com.purplerat.prconverter.audio.AudioChannels;
-import com.purplerat.prconverter.audio.AudioConverter;
 import com.purplerat.prconverter.audio.AudioConverterDialog;
 import com.purplerat.prconverter.audio.AudioConvertingPack;
 import com.purplerat.prconverter.audio.AudioConvertingService;
@@ -45,15 +42,13 @@ import com.purplerat.prconverter.image.ImageConverterDialog;
 import com.purplerat.prconverter.image.ImageFormats;
 import com.purplerat.prconverter.video.VideoConvertingDialog;
 import com.purplerat.prconverter.video.VideoConvertingPack;
+import com.purplerat.prconverter.video.VideoConvertingService;
 import com.purplerat.prconverter.video.VideoFormats;
 import com.purplerat.prconverter.video.VideoFormatsMap;
 import com.purplerat.prconverter.video.VideoStream;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
     private View rootView;
@@ -76,7 +71,7 @@ public class MainActivity extends AppCompatActivity {
         convert_video_button.setOnClickListener(v->videoLauncher.launch("video/*"));
         convert_audio_button.setOnClickListener(v->audioLauncher.launch("audio/*"));
         convert_image_button.setOnClickListener(v->imageLauncher.launch("image/*"));
-        if(isServiceRunning(AudioConvertingService.class)){
+        if(isServiceRunning(AudioConvertingService.class) || isServiceRunning(VideoConvertingService.class)){
             System.out.println("RESUMPTION");
             Intent intent = new Intent(this, ConvertingActivity.class);
             intent.putExtra("action","resumption");
@@ -166,7 +161,7 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 String oldName = UriUtils.getFileName(this,result);
                 String newName = oldName.substring(0,oldName.lastIndexOf(".") + 1)+audioFormat.getValue();
-                convertAudio(result,bitrate,sampleRate,channel,newName,false);
+                convertAudio(result,new AudioStream(bitrate,sampleRate,channel,audioFormat),newName,false);
 
             }).show(getSupportFragmentManager(),"audio_converter_dialog");
         }
@@ -187,8 +182,8 @@ public class MainActivity extends AppCompatActivity {
             }
             String command = String.format("-loglevel error -show_entries stream=codec_type -of csv=p=0 \"%s\"",file.getAbsolutePath());
             String output = FFprobeKit.execute(command).getAllLogsAsString();
-            VideoStream videoStream;
-            AudioStream audioStream;
+            VideoStream vs;
+            AudioStream as;
             if(output.contains("video")) {
                 String command1 = String.format("-v error -select_streams v:0 -show_entries stream=width,height,bit_rate,r_frame_rate -of default=noprint_wrappers=1 \"%s\"", file.getAbsolutePath());
                 for (String line : FFprobeKit.execute(command1).getAllLogsAsString().split("\n")) {
@@ -214,10 +209,10 @@ public class MainActivity extends AppCompatActivity {
                 }
                 String fileName = file.getName();
                 VideoFormats videoFormat = VideoFormatsMap.getVideoFormat(fileName.substring(fileName.lastIndexOf(".") + 1));
-                videoStream = new VideoStream(videoBitrate, width, height, fps, videoFormat);
+                vs = new VideoStream(videoBitrate, width, height, fps, videoFormat);
                 System.out.println("" + width + "\t" + height + "\t" + fps + "\t" + videoBitrate);
             }else{
-                videoStream = null;
+                vs = null;
             }
             if(output.contains("audio")){
                 String command2 = String.format("-v error -select_streams a:0 -show_entries stream=bit_rate,sample_rate,channels -of default=noprint_wrappers=1 \"%s\"", file.getAbsolutePath());
@@ -246,21 +241,23 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 }
-                audioStream = new AudioStream(audioBitrate,sampleRate,audioChannel);
+                as = new AudioStream(audioBitrate,sampleRate,audioChannel,null);
             }else{
-                audioStream = null;
+                as = null;
             }
-            new VideoConvertingDialog(videoStream, audioStream, new VideoConvertingDialog.VideoConvertingDialogCallback() {
-                @Override
-                public void onComplete(VideoStream videoStream, AudioStream audioStream) {
-                    if(audioStream == null && videoStream == null){
-                        Toast.makeText(MainActivity.this,"NICEEEEEEEEE",Toast.LENGTH_SHORT).show();
-                    }else{
-                        System.out.println(videoStream);
-                        System.out.println(audioStream);
-                    }
+            new VideoConvertingDialog(vs, as, (videoStream,audioStream)-> {
+                if(audioStream == null && videoStream == null){
+                    Toast.makeText(MainActivity.this,"YOU ARE GENIUS",Toast.LENGTH_SHORT).show();
+                }else if(videoStream == null){
+                    String oldName = UriUtils.getFileName(MainActivity.this,result);
+                    StringBuilder newName = new StringBuilder(oldName.substring(0,oldName.lastIndexOf(".")+1)).append(audioStream.getAudioFormat().getValue());
+                    convertAudio(result,audioStream,newName.toString(),false);
+                }else{
+                    String oldName = UriUtils.getFileName(MainActivity.this,result);
+                    StringBuilder newName = new StringBuilder(oldName.substring(0,oldName.lastIndexOf(".")+1)).append(videoStream.getVideoFormat().getValue());
+                    convertVideo(result,videoStream,audioStream,newName.toString(),false);
                 }
-            }).show(getSupportFragmentManager(),"video_converting_dialog");
+            }).show(getSupportFragmentManager(),"video_convert_video_dialog");
         }
     });
     private void convertVideo(final Uri importFile,VideoStream videoStream,AudioStream audioStream,final String fileName,final boolean overwrite){
@@ -303,7 +300,7 @@ public class MainActivity extends AppCompatActivity {
         }
         startActivity(intent);
     }
-    private void convertAudio(final Uri importFile,final int bitrate,final int sampleRate,final AudioChannels channel,final String fileName,final boolean overwrite){
+    private void convertAudio(final Uri importFile,final AudioStream audioStream,final String fileName,final boolean overwrite){
         File parentFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),getString(R.string.app_name));
         if(!parentFolder.exists()){
             if(!parentFolder.mkdirs()){
@@ -317,10 +314,10 @@ public class MainActivity extends AppCompatActivity {
                 new FileExistsDialog(fileName.substring(0,fileName.lastIndexOf(".")),(action,newFileName)->{
                     switch (action){
                         case OVERWRITE:
-                            convertAudio(importFile,bitrate,sampleRate,channel,fileName,true);
+                            convertAudio(importFile,audioStream,fileName,true);
                             break;
                         case RENAME:
-                            convertAudio(importFile,bitrate,sampleRate,channel,newFileName+ext,false);
+                            convertAudio(importFile,audioStream,newFileName+ext,false);
                             break;
                         case CANCEL:
                             break;
@@ -336,7 +333,7 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this,ConvertingActivity.class);
         intent.putExtra("action","audio");
         try {
-            intent.putExtra("pack",new AudioConvertingPack(UriUtils.getFileFromUri(this,importFile), new AudioStream(bitrate,sampleRate,channel), exportFile));
+            intent.putExtra("pack",new AudioConvertingPack(UriUtils.getFileFromUri(this,importFile), audioStream, exportFile));
         } catch (Exception e) {
             e.printStackTrace();
             return;

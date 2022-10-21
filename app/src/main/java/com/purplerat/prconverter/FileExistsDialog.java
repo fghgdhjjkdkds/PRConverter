@@ -40,17 +40,14 @@ public class FileExistsDialog extends DialogFragment {
         f_e_d_name_box = view.findViewById(R.id.f_e_d_name_box);
         TextInputEditText f_e_d_name_text = view.findViewById(R.id.f_e_d_name_text);
         f_e_d_name_text.addTextChangedListener(nameTextWatcher);
-        menu_file_exists_dialog_group.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(RadioGroup radioGroup, int i) {
-                if (i == R.id.f_e_d_overwrite) {
-                    f_e_d_name_box.setVisibility(View.GONE);
-                    action = FileExistsActions.OVERWRITE;
-                }else if (i == R.id.f_e_d_rename){
-                    f_e_d_name_box.setVisibility(View.VISIBLE);
-                    f_e_d_name_text.setText(fileName);
-                    action = FileExistsActions.RENAME;
-                }
+        menu_file_exists_dialog_group.setOnCheckedChangeListener((rG,i)-> {
+            if (i == R.id.f_e_d_overwrite) {
+                f_e_d_name_box.setVisibility(View.GONE);
+                action = FileExistsActions.OVERWRITE;
+            }else if (i == R.id.f_e_d_rename){
+                f_e_d_name_box.setVisibility(View.VISIBLE);
+                f_e_d_name_text.setText(fileName);
+                action = FileExistsActions.RENAME;
             }
         });
         builder.setView(view);
