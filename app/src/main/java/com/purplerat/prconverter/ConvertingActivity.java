@@ -1,6 +1,7 @@
 package com.purplerat.prconverter;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import android.content.BroadcastReceiver;
@@ -9,6 +10,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ProgressBar;
 
 import com.google.android.material.snackbar.Snackbar;
@@ -25,6 +27,7 @@ public class ConvertingActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
         setContentView(R.layout.activity_converting);
         rootView = findViewById(android.R.id.content).getRootView();
         progressBar = rootView.findViewById(R.id.progressBar);
@@ -39,6 +42,9 @@ public class ConvertingActivity extends AppCompatActivity {
         bm.registerReceiver(OnCompleteReceive,actionOnCompleteReceiver);
 
         String action = getIntent().getStringExtra("action");
+
+        Button stop_converting_button = rootView.findViewById(R.id.stop_converting_button);
+        stop_converting_button.setOnClickListener(v-> LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent("com.purplerat.prconverter.stop_converting")));
 
         switch (action){
             case "audio":
@@ -80,23 +86,24 @@ public class ConvertingActivity extends AppCompatActivity {
                 if(intent.hasExtra("file")){
                     if(intent.getSerializableExtra("file")==null){
                         if(rootView != null) {
-                            Snackbar.make(rootView,"Error while converting",Snackbar.LENGTH_SHORT).show();
+                            runOnUiThread(()->Snackbar.make(rootView,"Error while converting",Snackbar.LENGTH_SHORT).show());
                         }
                     }else{
                         File file = (File) intent.getSerializableExtra("file");
                         if(rootView != null) {
-                            Snackbar.make(rootView,"Successfully converted as "+file.getAbsolutePath(),Snackbar.LENGTH_SHORT).show();
+                            runOnUiThread(()->Snackbar.make(rootView,"Successfully converted as "+file.getAbsolutePath(),Snackbar.LENGTH_SHORT).show());
                         }
                     }
                 }
-                try{
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                finish();
+                new Thread(()->{
+                    try{
+                        Thread.sleep(1500);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    finish();
+                }).start();
             }
-
         }
     };
 
