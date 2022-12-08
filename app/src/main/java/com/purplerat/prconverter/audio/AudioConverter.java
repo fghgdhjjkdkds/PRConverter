@@ -44,14 +44,16 @@ public class AudioConverter implements Runnable{
     private File convertAudio(){
         String command;
         AudioStream audioStream= pack.getAudioStream();
+        File importFile = pack.getImportFile();
+        File exportFile = pack.getExportFile();
         try {
             command = String.format("-i \"%s\" %s %s %s %s \"%s\"",
-                    pack.getImportFile().getAbsolutePath(),
+                    importFile.getAbsolutePath(),
                     audioStream.getBitrate() == 0? "":"-b:a "+audioStream.getBitrate(),
                     audioStream.getSampleRate() == 0? "":"-ar "+audioStream.getSampleRate(),
                     audioStream.getChannel() == null? "":"-ac "+audioStream.getChannel().getIntValue(),
-                    pack.isOnlyAudio()?"-c:a copy":"",
-                    pack.getExportFile().getAbsolutePath());
+                    pack.isOnlyAudio() && audioStream.getBitrate() == 0 && audioStream.getSampleRate() == 0 && audioStream.getChannel() == null && importFile.getName().substring(importFile.getName().lastIndexOf(".")).equals(exportFile.getName().substring(exportFile.getName().lastIndexOf(".")))?"-c:a copy":"",
+                    exportFile.getAbsolutePath());
         } catch (Exception e) {
             if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
             return null;

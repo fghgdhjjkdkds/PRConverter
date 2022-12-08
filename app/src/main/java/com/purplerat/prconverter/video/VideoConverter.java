@@ -19,6 +19,7 @@ import com.purplerat.prconverter.BuildConfig;
 import com.purplerat.prconverter.audio.AudioStream;
 
 import java.io.File;
+import java.nio.file.Paths;
 
 public class VideoConverter implements Runnable{
     private static final String TAG = "VideoConverter";
@@ -46,26 +47,28 @@ public class VideoConverter implements Runnable{
         String command;
         VideoStream videoStream = pack.getVideoStream();
         AudioStream audioStream = pack.getAudioStream();
+        File importFile = pack.getImportFile();
+        File exportFile = pack.getExportFile();
         if(audioStream == null){
             command = String.format("-i \"%s\" -an %s %s %s %s \"%s\"",
-                    pack.getImportFile().getAbsolutePath(),
+                    importFile.getAbsolutePath(),
                     videoStream.getWidth() == 0? "":String.format("-s %sx%s",videoStream.getWidth(),videoStream.getHeight()),
                     videoStream.getFps() == 0?"": "-r "+videoStream.getFps(),
                     videoStream.getBitrate() == 0? "" : "-b:v " + videoStream.getBitrate(),
-                    videoStream.getWidth() == 0 && videoStream.getFps() == 0 && videoStream.getBitrate() == 0? "-c copy":"",
-                    pack.getExportFile().getAbsolutePath());
+                    videoStream.getWidth() == 0 && videoStream.getFps() == 0 && videoStream.getBitrate() == 0 && importFile.getName().substring(importFile.getName().lastIndexOf(".")).equals(exportFile.getName().substring(exportFile.getName().lastIndexOf(".")))? "-c:v copy":"",
+                    exportFile.getAbsolutePath());
         }else{
             command = String.format("-i \"%s\" %s %s %s %s %s %s %s %s \"%s\"",
-                    pack.getImportFile().getAbsolutePath(),
+                    importFile.getAbsolutePath(),
                     videoStream.getWidth() == 0? "":String.format("-s %sx%s",videoStream.getWidth(),videoStream.getHeight()),
                     videoStream.getFps() == 0?"": "-r "+videoStream.getFps(),
                     videoStream.getBitrate() == 0? "" : "-b:v " + videoStream.getBitrate(),
-                    videoStream.getWidth() == 0 && videoStream.getFps() == 0 && videoStream.getBitrate() == 0? "-c:v copy":"",
+                    videoStream.getWidth() == 0 && videoStream.getFps() == 0 && videoStream.getBitrate() == 0 && importFile.getName().substring(importFile.getName().lastIndexOf(".")).equals(exportFile.getName().substring(exportFile.getName().lastIndexOf(".")))? "-c:v copy":"",
                     audioStream.getBitrate() == 0? "" : "-b:a " + audioStream.getBitrate(),
                     audioStream.getSampleRate() == 0? "": "-ar "+audioStream.getSampleRate(),
                     audioStream.getChannel() == null? "" : "-ac "+audioStream.getChannel().getIntValue(),
                     audioStream.getBitrate() == 0 && audioStream.getSampleRate() == 0 && audioStream.getChannel() == null? "-c:a copy":"",
-                    pack.getExportFile().getAbsolutePath());
+                    exportFile.getAbsolutePath());
         }
         if(BuildConfig.DEBUG)Log.d(TAG,command);
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
