@@ -34,6 +34,7 @@
         </activity>
         <service android:name=".audio.AudioConvertingService"/>
         <service android:name=".video.VideoConvertingService"/>
+        <receiver android:name=".MyBroadcastReceiver"/>
     </application>
 
 </manifest>

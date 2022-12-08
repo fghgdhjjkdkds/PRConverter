@@ -1,13 +1,17 @@
 package com.purplerat.prconverter.video;
 
+import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
@@ -26,6 +30,8 @@ import com.purplerat.prconverter.audio.AudioChannelsMap;
 import com.purplerat.prconverter.audio.AudioFormatMap;
 import com.purplerat.prconverter.audio.AudioFormats;
 import com.purplerat.prconverter.audio.AudioStream;
+
+import java.util.Objects;
 
 public class VideoConvertingDialog extends DialogFragment {
     private final boolean[] videoStreamErrors = new boolean[]{false,false,false,false};
@@ -52,6 +58,9 @@ public class VideoConvertingDialog extends DialogFragment {
 
     private VideoStream videoStream;
     private AudioStream audioStream;
+
+    private VideoStream exportVideoStream = null;
+    private AudioStream exportAudioStream = null;
     private final VideoConvertingDialogCallback videoConvertingDialogCallback;
 
     public VideoConvertingDialog(VideoStream videoStream,AudioStream audioStream,VideoConvertingDialogCallback videoConvertingDialogCallback) {
@@ -60,13 +69,16 @@ public class VideoConvertingDialog extends DialogFragment {
         this.videoConvertingDialogCallback = videoConvertingDialogCallback;
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
+        InputMethodManager inputMethodManager = (InputMethodManager) requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE);
         AlertDialog.Builder dialog = new AlertDialog.Builder(getActivity(), R.style.MyDialogTheme);
+        dialog.setOnKeyListener((dialogInterface, i, keyEvent) -> i == KeyEvent.KEYCODE_BACK && keyEvent.getAction() == KeyEvent.ACTION_UP);
         dialog.setTitle("Video converting");
         dialog.setPositiveButton(android.R.string.ok,(d,i)->{});
-        dialog.setNegativeButton(android.R.string.cancel,(d,i)->{videoStream = null;audioStream = null;});
+        dialog.setNegativeButton(android.R.string.cancel,(d,i)->{});
         View rootView  = getLayoutInflater().inflate(R.layout.video_converter_dialog_view,(ViewGroup) getView(),false);
 
         show_video_stream_button = rootView.findViewById(R.id.show_video_stream_button);
@@ -78,6 +90,10 @@ public class VideoConvertingDialog extends DialogFragment {
         video_converter_dialog_delete_audio_checkbox = rootView.findViewById(R.id.video_converter_dialog_delete_audio_checkbox);
         video_converter_dialog_inner_audio_block = rootView.findViewById(R.id.video_converter_dialog_inner_audio_block);
         video_dialog_audio_format_box = rootView.findViewById(R.id.video_dialog_audio_format_box);
+        rootView.findViewById(R.id.video_converter_focus_view).setOnTouchListener((view, motionEvent) -> {
+            if(inputMethodManager!=null&&inputMethodManager.isActive())inputMethodManager.hideSoftInputFromWindow(rootView.getWindowToken(), 0);
+            return false;
+        });
 
         if(videoStream == null){
             show_video_stream_button.setVisibility(View.GONE);
@@ -99,20 +115,30 @@ public class VideoConvertingDialog extends DialogFragment {
 
             final TextInputLayout video_dialog_bitrate_video_box = rootView.findViewById(R.id.video_dialog_video_bitrate_box);
             video_dialog_video_bitrate_text = rootView.findViewById(R.id.video_dialog_video_bitrate_text);
-            video_dialog_video_bitrate_text.addTextChangedListener(new VideoTextFieldTemplate(video_dialog_bitrate_video_box,3));
-            video_dialog_video_bitrate_text.setText(String.valueOf(videoStream.getBitrate()));
+            if(videoStream.getBitrate()!=0) {
+                video_dialog_video_bitrate_text.addTextChangedListener(new VideoTextFieldTemplate(video_dialog_bitrate_video_box, 3));
+                video_dialog_video_bitrate_text.setText(String.valueOf(videoStream.getBitrate()));
+            }else{
+                video_dialog_bitrate_video_box.setVisibility(View.GONE);
+                video_dialog_video_bitrate_text.setText("0");
+            }
 
             video_dialog_video_format = rootView.findViewById(R.id.video_dialog_video_format);
-            video_dialog_video_format.setText(videoStream.getVideoFormat().getValue());
-            video_dialog_video_format.setAdapter(new ArrayAdapter<>(getActivity(), android.R.layout.simple_list_item_1,VideoFormats.getEnableVideoFormats()));
+            video_dialog_video_format.setText(videoStream.getVideoFormat().getValue(),false);
+            video_dialog_video_format.setAdapter(new ArrayAdapter<>(getActivity(), R.layout.dropdown_list_item,VideoFormats.getEnableVideoFormats()));
         }
         if(audioStream == null){
             show_audio_stream_button.setVisibility(View.GONE);
         }else{
             final TextInputLayout video_dialog_audio_bitrate_box = rootView.findViewById(R.id.video_dialog_audio_bitrate_box);
             video_dialog_audio_bitrate_text = rootView.findViewById(R.id.video_dialog_audio_bitrate_text);
-            video_dialog_audio_bitrate_text.addTextChangedListener(new AudioTextFieldTemplate(video_dialog_audio_bitrate_box,0));
-            video_dialog_audio_bitrate_text.setText(String.valueOf(audioStream.getBitrate()));
+            if(audioStream.getBitrate()!=0) {
+                video_dialog_audio_bitrate_text.addTextChangedListener(new AudioTextFieldTemplate(video_dialog_audio_bitrate_box, 0));
+                video_dialog_audio_bitrate_text.setText(String.valueOf(audioStream.getBitrate()));
+            }else{
+                video_dialog_audio_bitrate_box.setVisibility(View.GONE);
+                video_dialog_audio_bitrate_text.setText("0");
+            }
 
             final TextInputLayout video_dialog_sample_rate_box = rootView.findViewById(R.id.video_dialog_sample_rate_box);
             video_dialog_sample_rate_text = rootView.findViewById(R.id.video_dialog_sample_rate_text);
@@ -120,11 +146,11 @@ public class VideoConvertingDialog extends DialogFragment {
             video_dialog_sample_rate_text.setText(String.valueOf(audioStream.getSampleRate()));
 
             video_dialog_channels = rootView.findViewById(R.id.video_dialog_channels);
-            video_dialog_channels.setText(audioStream.getChannel().getValue());
+            video_dialog_channels.setText(audioStream.getChannel().getValue(),false);
             video_dialog_channels.setAdapter(new ArrayAdapter<>(getActivity(), android.R.layout.simple_list_item_1, AudioChannels.getEnableChannels()));
 
             video_dialog_audio_format = rootView.findViewById(R.id.video_dialog_audio_format);
-            video_dialog_audio_format.setText("mp3");
+            video_dialog_audio_format.setText(AudioFormats.getEnableAudioFormats()[0],false);
             video_dialog_audio_format.setAdapter(new ArrayAdapter<>(getActivity(), android.R.layout.simple_list_item_1, AudioFormats.getEnableAudioFormats()));
 
             if(videoStream == null){
@@ -167,39 +193,58 @@ public class VideoConvertingDialog extends DialogFragment {
             }
         });
         dialog.setView(rootView);
-        AlertDialog alertDialog = dialog.create();
+        AlertDialog alertDialog = dialog.show();
         alertDialog.setCanceledOnTouchOutside(false);
-        alertDialog.setOnShowListener(alertDialogView->{
-            Button positiveButton = alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
-            positiveButton.setOnClickListener(v->{
-                if(video_converter_dialog_delete_video_checkbox.isChecked()){
-                    videoStream = null;
-                }else if(videoStream!= null){
-                    for(boolean error : videoStreamErrors){
-                        if(error) return;
-                    }
-                    videoStream = new VideoStream(
-                            Integer.parseInt(video_dialog_video_bitrate_text.getText().toString()),
-                            Integer.parseInt(video_dialog_width_text.getText().toString()),
-                            Integer.parseInt(video_dialog_height_text.getText().toString()),
-                            Integer.parseInt(video_dialog_fps_text.getText().toString()),
-                            VideoFormatsMap.getVideoFormat(video_dialog_video_format.getText().toString()));
+
+        int buttonPanelId = getResources().getIdentifier("buttonPanel","id","android");
+        final View buttonPanel=alertDialog.findViewById(buttonPanelId);
+        if (buttonPanel!=null){
+            buttonPanel.setBackgroundColor(getResources().getColor(R.color.bg_color, requireActivity().getTheme()));
+        }
+
+        int topPanelId = getResources().getIdentifier("topPanel","id","android");
+        final View topPanel =alertDialog.findViewById(topPanelId);
+        if (topPanel!=null){
+            topPanel.setBackgroundColor(getResources().getColor(R.color.primary_color,requireActivity().getTheme()));
+        }
+
+        Button positiveButton = alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
+        positiveButton.setOnClickListener(v->{
+            if(video_converter_dialog_delete_video_checkbox.isChecked()){
+                exportVideoStream = null;
+            }else if(videoStream!= null){
+                for(boolean error : videoStreamErrors){
+                    if(error) return;
                 }
-                if(video_converter_dialog_delete_audio_checkbox.isChecked()){
-                    audioStream = null;
-                }else if(audioStream!= null){
-                    for(boolean error:audioStreamErrors){
-                        if(error)return;
-                    }
-                    audioStream = new AudioStream(
-                            Integer.parseInt(video_dialog_audio_bitrate_text.getText().toString()),
-                            Integer.parseInt(video_dialog_sample_rate_text.getText().toString()),
-                            AudioChannelsMap.getAudioChannel(video_dialog_channels.getText().toString()),
-                            AudioFormatMap.getAudioFormat(video_dialog_audio_format.getText().toString()));
+                int bitrate = Integer.parseInt(Objects.requireNonNull(video_dialog_video_bitrate_text.getText()).toString());
+                int width = Integer.parseInt(Objects.requireNonNull(video_dialog_width_text.getText()).toString());
+                int height = Integer.parseInt(Objects.requireNonNull(video_dialog_height_text.getText()).toString());
+                int fps = Integer.parseInt(Objects.requireNonNull(video_dialog_fps_text.getText()).toString());
+                exportVideoStream = new VideoStream(
+                        bitrate == videoStream.getBitrate()? 0 : bitrate,
+                        width != videoStream.getWidth() || height != videoStream.getHeight()? width : 0,
+                        width != videoStream.getWidth() || height != videoStream.getHeight()? height : 0,
+                        fps == videoStream.getFps()? 0 : fps,
+                        VideoFormatsMap.getVideoFormat(video_dialog_video_format.getText().toString()));
+            }
+            if(video_converter_dialog_delete_audio_checkbox.isChecked()){
+                exportAudioStream = null;
+            }else if(audioStream!= null){
+                for(boolean error:audioStreamErrors){
+                    if(error)return;
                 }
-                dismiss();
-            });
+                int bitrate = Integer.parseInt(Objects.requireNonNull(video_dialog_audio_bitrate_text.getText()).toString());
+                int sampleRate = Integer.parseInt(Objects.requireNonNull(video_dialog_sample_rate_text.getText()).toString());
+                AudioChannels audioChannel = AudioChannelsMap.getAudioChannel(video_dialog_channels.getText().toString());
+                exportAudioStream = new AudioStream(
+                        bitrate == audioStream.getBitrate()? 0 : bitrate,
+                        sampleRate == audioStream.getSampleRate()? 0 : sampleRate,
+                        audioChannel == audioStream.getChannel()?null:audioChannel,
+                        AudioFormatMap.getAudioFormat(video_dialog_audio_format.getText().toString()));
+            }
+            dismiss();
         });
+
         return alertDialog;
     }
     private class VideoTextFieldTemplate implements TextWatcher{
@@ -310,7 +355,7 @@ public class VideoConvertingDialog extends DialogFragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        videoConvertingDialogCallback.onComplete(videoStream,audioStream);
+        videoConvertingDialogCallback.onComplete(exportVideoStream,exportAudioStream);
     }
 
     public interface VideoConvertingDialogCallback{

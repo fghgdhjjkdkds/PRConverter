@@ -3,10 +3,7 @@ package com.purplerat.prconverter.audio;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import android.os.IBinder;
 
 import androidx.annotation.Nullable;
@@ -14,11 +11,14 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import com.purplerat.prconverter.MyBroadcastReceiver;
 import com.purplerat.prconverter.R;
 
 import java.io.File;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AudioConvertingService extends Service {
+    private final AtomicBoolean success = new AtomicBoolean(false);
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
@@ -43,6 +43,7 @@ public class AudioConvertingService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        success.set(false);
         int notificationID = 1;
         final NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(getApplicationContext());
 
@@ -54,14 +55,12 @@ public class AudioConvertingService extends Service {
                 .setOnlyAlertOnce(true)
                 .setOngoing(true);
         final NotificationCompat.Builder finalNotification  = new NotificationCompat.Builder(getApplicationContext(),  getString(R.string.notification_id))
-                .setContentTitle("Successfully converted")
-                .setSmallIcon(R.drawable.ic_baseline_download_done_24)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setOngoing(false);
 
-        notificationManagerCompat.notify(notificationID, notification.build());
         AudioConvertingPack audioConvertingPack = (AudioConvertingPack)intent.getSerializableExtra("pack");
         if(audioConvertingPack != null){
+            notificationManagerCompat.notify(notificationID, notification.build());
             new Thread(new AudioConverter(getApplicationContext(), audioConvertingPack, new AudioConverter.AudioConverterCallback() {
                 @Override
                 public void onProgress(int progress) {
@@ -80,13 +79,17 @@ public class AudioConvertingService extends Service {
                         finalNotification.setContentTitle("Successfully converted");
                         finalNotification.setSmallIcon(R.drawable.ic_baseline_download_done_24);
                     }
-                    Intent intent = new Intent("complete").putExtra("file",file);
-                    LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
                     notificationManagerCompat.cancel(1);
                     notificationManagerCompat.notify(1,finalNotification.build());
+                    Intent intent = new Intent("complete").putExtra("file",file);
+                    LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
+                    success.set(true);
                     stopSelf();
                 }
             })).start();
+        }else{
+            success.set(true);
+            stopSelf();
         }
         return super.onStartCommand(intent, flags, startId);
     }
@@ -94,18 +97,7 @@ public class AudioConvertingService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Intent broadcastIntent = new Intent();
-        broadcastIntent.setAction("restart_audio_converting_service");
-        broadcastIntent.setClass(this, AudioConvertingRestarter.class);
-        this.sendBroadcast(broadcastIntent);
-    }
-}
-class AudioConvertingRestarter extends BroadcastReceiver {
-    @Override
-    public void onReceive(Context context, Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(new Intent(context, AudioConvertingService.class));
-        }
+        if(!success.get())sendBroadcast(new Intent("com.purplerat.prconverter.restart_audio_converting").setClass(this, MyBroadcastReceiver.class));
     }
 }
 

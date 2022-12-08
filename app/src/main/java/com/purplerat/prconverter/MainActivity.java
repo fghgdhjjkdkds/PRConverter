@@ -25,6 +25,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
@@ -50,8 +51,10 @@ import com.purplerat.prconverter.video.VideoStream;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
+    private static final String TAG = "MainActivity";
     private View rootView;
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private final static String[] PERMISSIONS_STORAGE = {
@@ -74,9 +77,7 @@ public class MainActivity extends AppCompatActivity {
         convert_audio_button.setOnClickListener(v->audioLauncher.launch("audio/*"));
         convert_image_button.setOnClickListener(v->imageLauncher.launch("image/*"));
         if(isServiceRunning(AudioConvertingService.class) || isServiceRunning(VideoConvertingService.class)){
-            System.out.println("RESUMPTION");
             Intent intent = new Intent(this, ConvertingActivity.class);
-            intent.putExtra("action","resumption");
             startActivity(intent);
             return;
         }
@@ -99,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 BitmapFactory.decodeStream(getContentResolver().openInputStream(result), null, options);
             } catch (FileNotFoundException e) {
-                e.printStackTrace();
+                if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
                 Snackbar.make(rootView,"ERROR while getting file",Snackbar.LENGTH_SHORT).show();
                 return;
             }
@@ -125,8 +126,7 @@ public class MainActivity extends AppCompatActivity {
                 if(imageFormat== null){
                     return;
                 }
-                String newName = oldName.substring(0,oldName.lastIndexOf(".") + 1)+imageFormat.getExtension();
-                convertImage(result,x,y,newName,false);
+                convertImage(result,x,y,oldName.substring(0,oldName.lastIndexOf(".")),imageFormat.getExtension());
             }).show(getSupportFragmentManager(),"image_converting_dialog");
         }
     });
@@ -154,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
                     oldChannel = AudioChannels.MONO;
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
                 Snackbar.make(rootView,"ERROR while getting file",Snackbar.LENGTH_SHORT).show();
                 return;
             }
@@ -162,8 +162,7 @@ public class MainActivity extends AppCompatActivity {
                 if(audioFormat== null)
                     return;
                 String oldName = UriUtils.getFileName(this,result);
-                String newName = oldName.substring(0,oldName.lastIndexOf(".") + 1)+audioFormat.getValue();
-                convertAudio(result,new AudioStream(bitrate,sampleRate,channel,audioFormat),newName,false);
+                convertAudio(result,new AudioStream(bitrate,sampleRate,channel,audioFormat),oldName.substring(0,oldName.lastIndexOf(".")),audioFormat.getValue(),true);
 
             }).show(getSupportFragmentManager(),"audio_converter_dialog");
         }
@@ -179,15 +178,15 @@ public class MainActivity extends AppCompatActivity {
             try {
                 file = UriUtils.getFileFromUri(this, result);
             }catch (Exception e) {
-                e.printStackTrace();
+                if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
                 return;
             }
-            String command = String.format("-loglevel error -show_entries stream=codec_type -of csv=p=0 \"%s\"",file.getAbsolutePath());
+            String command = String.format("-v quiet -show_entries stream=codec_type -of csv=p=0 \"%s\"", Objects.requireNonNull(file).getAbsolutePath());
             String output = FFprobeKit.execute(command).getAllLogsAsString();
             VideoStream vs;
             AudioStream as;
             if(output.contains("video")) {
-                String command1 = String.format("-v error -select_streams v:0 -show_entries stream=width,height,bit_rate,r_frame_rate -of default=noprint_wrappers=1 \"%s\"", file.getAbsolutePath());
+                String command1 = String.format("-v quiet -select_streams v:0 -show_entries stream=width,height,bit_rate,r_frame_rate -of default=noprint_wrappers=1 \"%s\"", file.getAbsolutePath());
                 for (String line : FFprobeKit.execute(command1).getAllLogsAsString().split("\n")) {
                     buf = line.substring(line.lastIndexOf("=") + 1);
                     if (line.contains("width=")) {
@@ -201,7 +200,7 @@ public class MainActivity extends AppCompatActivity {
                     } else if (line.contains("r_frame_rate=")) {
                         buf = line.substring(line.lastIndexOf("=") + 1, line.lastIndexOf("/"));
                         if (!buf.equals("N/A")) {
-                            fps = Integer.parseInt(buf);
+                            fps = (int)Math.round(Float.parseFloat(buf)/Float.parseFloat(line.substring(line.lastIndexOf("/")+1)));
                         }
                     } else if (line.contains("bit_rate=")) {
                         if (!buf.equals("N/A")) {
@@ -212,12 +211,11 @@ public class MainActivity extends AppCompatActivity {
                 String fileName = file.getName();
                 VideoFormats videoFormat = VideoFormatsMap.getVideoFormat(fileName.substring(fileName.lastIndexOf(".") + 1));
                 vs = new VideoStream(videoBitrate, width, height, fps, videoFormat);
-                System.out.println("" + width + "\t" + height + "\t" + fps + "\t" + videoBitrate);
             }else{
                 vs = null;
             }
             if(output.contains("audio")){
-                String command2 = String.format("-v error -select_streams a:0 -show_entries stream=bit_rate,sample_rate,channels -of default=noprint_wrappers=1 \"%s\"", file.getAbsolutePath());
+                String command2 = String.format("-v quiet -select_streams a:0 -show_entries stream=bit_rate,sample_rate,channels -of default=noprint_wrappers=1 \"%s\"", file.getAbsolutePath());
                 int sampleRate = 0;
                 int audioBitrate = 0;
                 AudioChannels audioChannel = null;
@@ -248,130 +246,71 @@ public class MainActivity extends AppCompatActivity {
                 as = null;
             }
             new VideoConvertingDialog(vs, as, (videoStream,audioStream)-> {
-                if(audioStream == null && videoStream == null){
-                    Toast.makeText(MainActivity.this,"YOU ARE GENIUS",Toast.LENGTH_SHORT).show();
-                }else if(videoStream == null){
+                if(videoStream == null && audioStream!=null){
                     String oldName = UriUtils.getFileName(MainActivity.this,result);
-                    StringBuilder newName = new StringBuilder(oldName.substring(0,oldName.lastIndexOf(".")+1)).append(audioStream.getAudioFormat().getValue());
-                    convertAudio(result,audioStream,newName.toString(),false);
-                }else{
+                    convertAudio(result,audioStream,oldName.substring(0,oldName.lastIndexOf(".")),audioStream.getAudioFormat().getValue(),false);
+                }else if(videoStream != null){
                     String oldName = UriUtils.getFileName(MainActivity.this,result);
-                    StringBuilder newName = new StringBuilder(oldName.substring(0,oldName.lastIndexOf(".")+1)).append(videoStream.getVideoFormat().getValue());
-                    convertVideo(result,videoStream,audioStream,newName.toString(),false);
+                    convertVideo(result,videoStream,audioStream,oldName.substring(0,oldName.lastIndexOf(".")),videoStream.getVideoFormat().getValue());
                 }
             }).show(getSupportFragmentManager(),"video_convert_video_dialog");
         }
     });
-    private void convertVideo(final Uri importFile,VideoStream videoStream,AudioStream audioStream,final String fileName,final boolean overwrite){
+    private void convertVideo(final Uri importFile,VideoStream videoStream,AudioStream audioStream,final String fileName,final String ext){
         File parentFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),getString(R.string.app_name));
         if(!parentFolder.exists()){
             if(!parentFolder.mkdirs()){
                 return;
             }
         }
-        File exportFile = new File(parentFolder,fileName);
-        if(exportFile.exists()) {
-            if (!overwrite) {
-                String ext = fileName.substring(fileName.lastIndexOf("."));
-                new FileExistsDialog(fileName.substring(0,fileName.lastIndexOf(".")),(action,newFileName)->{
-                    switch (action){
-                        case OVERWRITE:
-                            convertVideo(importFile,videoStream,audioStream,fileName,true);
-                            break;
-                        case RENAME:
-                            convertVideo(importFile,videoStream,audioStream,newFileName+ext,false);
-                            break;
-                        case CANCEL:
-                            break;
-                    }
-                }).show(getSupportFragmentManager(),"file_exists_dialog");
-                return;
-            }else{
-                if(!exportFile.delete()){
-                    return;
-                }
-            }
+        File exportFile = new File(parentFolder,fileName+"."+ext);
+        int n = 1;
+        while(exportFile.exists()){
+            exportFile = new File(parentFolder,fileName+"("+(n++)+")."+ext);
         }
         Intent intent = new Intent(this,ConvertingActivity.class);
         intent.putExtra("action","video");
         try {
             intent.putExtra("pack",new VideoConvertingPack(UriUtils.getFileFromUri(this,importFile),videoStream,audioStream, exportFile));
         } catch (Exception e) {
-            e.printStackTrace();
+            if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
             return;
         }
         startActivity(intent);
     }
-    private void convertAudio(final Uri importFile,final AudioStream audioStream,final String fileName,final boolean overwrite){
+    private void convertAudio(final Uri importFile,final AudioStream audioStream,final String fileName,final String ext,boolean onlyAudio){
         File parentFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),getString(R.string.app_name));
         if(!parentFolder.exists()){
             if(!parentFolder.mkdirs()){
                 return;
             }
         }
-        File exportFile = new File(parentFolder,fileName);
-        if(exportFile.exists()) {
-            if (!overwrite) {
-                String ext = fileName.substring(fileName.lastIndexOf("."));
-                new FileExistsDialog(fileName.substring(0,fileName.lastIndexOf(".")),(action,newFileName)->{
-                    switch (action){
-                        case OVERWRITE:
-                            convertAudio(importFile,audioStream,fileName,true);
-                            break;
-                        case RENAME:
-                            convertAudio(importFile,audioStream,newFileName+ext,false);
-                            break;
-                        case CANCEL:
-                            break;
-                    }
-                }).show(getSupportFragmentManager(),"file_exists_dialog");
-                return;
-            }else{
-                if(!exportFile.delete()){
-                    return;
-                }
-            }
+        File exportFile = new File(parentFolder,fileName+"."+ext);
+        int n = 1;
+        while(exportFile.exists()){
+            exportFile = new File(parentFolder,fileName+"("+(n++)+")."+ext);
         }
         Intent intent = new Intent(this,ConvertingActivity.class);
         intent.putExtra("action","audio");
         try {
-            intent.putExtra("pack",new AudioConvertingPack(UriUtils.getFileFromUri(this,importFile), audioStream, exportFile));
+            intent.putExtra("pack",new AudioConvertingPack(UriUtils.getFileFromUri(this,importFile), audioStream, exportFile,onlyAudio));
         } catch (Exception e) {
-            e.printStackTrace();
+            if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
             return;
         }
         startActivity(intent);
     }
-    private void convertImage(final Uri importFile,final int x,final int y,final String fileName,final boolean overwrite){
+    private void convertImage(final Uri importFile,final int x,final int y,final String fileName,final String ext){
         File parentFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),getString(R.string.app_name));
         if(!parentFolder.exists()){
             if(!parentFolder.mkdirs()){
                 return;
             }
         }
-        File exportFile = new File(parentFolder,fileName);
-        if(exportFile.exists()){
-            if(!overwrite){
-                String ext = fileName.substring(fileName.lastIndexOf("."));
-                new FileExistsDialog(fileName.substring(0,fileName.lastIndexOf(".")),(action,newFileName)->{
-                    switch (action){
-                        case OVERWRITE:
-                            convertImage(importFile,x,y,fileName,true);
-                            break;
-                        case RENAME:
-                            System.out.println(newFileName+ext);
-                            convertImage(importFile,x,y,newFileName+ext,false);
-                            break;
-                        case CANCEL:
-                            break;
-                    }
-                }).show(getSupportFragmentManager(),"file_exists_dialog");
-                return;
-            }else{
-                if(!exportFile.delete()){
-                    return;
-                }
-            }
+        File exportFile = new File(parentFolder,fileName+"."+ext);
+        int n = 1;
+        while(exportFile.exists()){
+            exportFile = new File(parentFolder,fileName+"("+(n++)+")."+ext);
         }
         new Thread(new ImageConverter(this,importFile,x,y,exportFile,file-> runOnUiThread(()->{
             if(file == null){

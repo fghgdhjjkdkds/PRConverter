@@ -6,6 +6,7 @@ import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.IBinder;
 
@@ -14,16 +15,17 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import com.purplerat.prconverter.MyBroadcastReceiver;
 import com.purplerat.prconverter.R;
 
 import java.io.File;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class VideoConvertingService extends Service {
+    private final AtomicBoolean success = new AtomicBoolean(false);
     @Nullable
     @Override
-    public IBinder onBind(Intent intent) {
-        return null;
-    }
+    public IBinder onBind(Intent intent) {return null;}
     @Override
     public void onCreate() {
         super.onCreate();
@@ -39,10 +41,9 @@ public class VideoConvertingService extends Service {
                 .build();
         startForeground(99,notification);
     }
-
-
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        success.set(false);
         int notificationID = 1;
         final NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(getApplicationContext());
 
@@ -80,13 +81,17 @@ public class VideoConvertingService extends Service {
                         finalNotification.setContentTitle("Successfully converted");
                         finalNotification.setSmallIcon(R.drawable.ic_baseline_download_done_24);
                     }
-                    Intent intent = new Intent("complete").putExtra("file",file);
-                    LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
                     notificationManagerCompat.cancel(1);
                     notificationManagerCompat.notify(1,finalNotification.build());
+                    Intent intent = new Intent("complete").putExtra("file",file);
+                    LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
+                    success.set(true);
                     stopSelf();
                 }
             })).start();
+        }else{
+            success.set(true);
+            stopSelf();
         }
         return super.onStartCommand(intent, flags, startId);
     }
@@ -94,19 +99,7 @@ public class VideoConvertingService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Intent broadcastIntent = new Intent();
-        broadcastIntent.setAction("restart_video_converting_service");
-        broadcastIntent.setClass(this, AudioConvertingRestarter.class);
-        this.sendBroadcast(broadcastIntent);
-    }
-}
-
-class AudioConvertingRestarter extends BroadcastReceiver {
-    @Override
-    public void onReceive(Context context, Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(new Intent(context, VideoConvertingService.class));
-        }
+        if(!success.get()) sendBroadcast(new Intent("com.purplerat.prconverter.restart_video_converting").setClass(this, MyBroadcastReceiver.class));
     }
 }
 

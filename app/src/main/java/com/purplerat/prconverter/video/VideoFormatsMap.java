@@ -12,7 +12,6 @@ public class VideoFormatsMap {
         videoFormatMap.put("mov",VideoFormats.MOV);
     }
     public static VideoFormats getVideoFormat(String key){
-        System.out.println(key);
         return videoFormatMap.get(key);
     }
 }

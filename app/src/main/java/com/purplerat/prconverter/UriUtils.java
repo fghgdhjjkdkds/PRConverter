@@ -5,149 +5,96 @@ import android.content.ContentUris;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
 
 public class UriUtils {
 
 
     @SuppressLint("Range")
-    public static File getFileFromUri(final Context context, final Uri uri) throws Exception {
+    public static File getFileFromUri(final Context context, final Uri uri) {
 
         String path = null;
 
         // DocumentProvider
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            if (DocumentsContract.isDocumentUri(context, uri)) { // TODO: 2015. 11. 17. KITKAT
+        if (DocumentsContract.isDocumentUri(context, uri)) { // TODO: 2015. 11. 17. KITKAT
 
 
-                // ExternalStorageProvider
-                if (isExternalStorageDocument(uri)) {
-                    final String docId = DocumentsContract.getDocumentId(uri);
-                    final String[] split = docId.split(":");
-                    final String type = split[0];
+            // ExternalStorageProvider
+            if (isExternalStorageDocument(uri)) {
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
 
 
-                    if ("primary".equalsIgnoreCase(type)) {
-                        path = Environment.getExternalStorageDirectory() + "/" + split[1];
-                    }
+                if ("primary".equalsIgnoreCase(type)) {
+                    path = Environment.getExternalStorageDirectory() + "/" + split[1];
+                }
 
-                    // TODO handle non-primary volumes
+                // TODO handle non-primary volumes
 
-                } else if (isDownloadsDocument(uri)) { // DownloadsProvider
+            } else if (isDownloadsDocument(uri)) { // DownloadsProvider
 
-                    final String id = DocumentsContract.getDocumentId(uri);
-                    final Uri contentUri = ContentUris.withAppendedId(
-                            Uri.parse("content://downloads/public_downloads"), Long.parseLong(id));
+                final String id = DocumentsContract.getDocumentId(uri);
+                final Uri contentUri = ContentUris.withAppendedId(
+                        Uri.parse("content://downloads/public_downloads"), Long.parseLong(id));
 
-                    path = getDataColumn(context, contentUri, null, null);
+                path = getDataColumn(context, contentUri, null, null);
 
-                } else if (isMediaDocument(uri)) { // MediaProvider
-
-
-                    final String docId = DocumentsContract.getDocumentId(uri);
-                    final String[] split = docId.split(":");
-                    final String type = split[0];
-
-                    Uri contentUri = null;
-                    if ("image".equals(type)) {
-                        contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-                    } else if ("video".equals(type)) {
-                        contentUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
-                    } else if ("audio".equals(type)) {
-                        contentUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-                    }
-
-                    final String selection = "_id=?";
-                    final String[] selectionArgs = new String[]{
-                            split[1]
-                    };
-
-                    path = getDataColumn(context, contentUri, selection, selectionArgs);
-
-                } else if (isGoogleDrive(uri)) { // Google Drive
-                    String TAG = "isGoogleDrive";
-                    path = TAG;
-                    final String docId = DocumentsContract.getDocumentId(uri);
-                    final String[] split = docId.split(";");
-                    final String acc = split[0];
-                    final String doc = split[1];
-
-                    /*
-                     * @details google drive document data. - acc , docId.
-                     * */
-
-                    return saveFileIntoExternalStorageByUri(context, uri);
+            } else if (isMediaDocument(uri)) { // MediaProvider
 
 
-                } // MediaStore (and general)
-            } else if ("content".equalsIgnoreCase(uri.getScheme())) {
-                path = getDataColumn(context, uri, null, null);
-            }
-            // File
-            else if ("file".equalsIgnoreCase(uri.getScheme())) {
-                path = uri.getPath();
-            }
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
 
-            return new File(path);
-        } else {
+                Uri contentUri = null;
+                if ("image".equals(type)) {
+                    contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                } else if ("video".equals(type)) {
+                    contentUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                } else if ("audio".equals(type)) {
+                    contentUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+                }
 
-            Cursor cursor = context.getContentResolver().query(uri, null, null, null, null);
-            for(int i = 0;i<cursor.getColumnCount();i++){
-                System.out.println(cursor.getColumnName(i));
-            }
-            return new File(cursor.getString(cursor.getColumnIndex("_data")));
+                final String selection = "_id=?";
+                final String[] selectionArgs = new String[]{
+                        split[1]
+                };
+
+                path = getDataColumn(context, contentUri, selection, selectionArgs);
+            } // MediaStore (and general)
+        } else if ("content".equalsIgnoreCase(uri.getScheme())) {
+            path = getDataColumn(context, uri, null, null);
         }
+        // File
+        else if ("file".equalsIgnoreCase(uri.getScheme())) {
+            path = uri.getPath();
+        }
+        if(path == null)return null;
+        return new File(path);
 
-    }
-
-    public static boolean isGoogleDrive(Uri uri) {
-        return uri.getAuthority().equalsIgnoreCase("com.google.android.apps.docs.storage");
     }
 
     public static boolean isExternalStorageDocument(Uri uri) {
         return "com.android.externalstorage.documents".equals(uri.getAuthority());
     }
 
-    private static boolean isGooglePhotosUri(Uri uri) {
-        return "com.google.android.apps.photos.content".equals(uri.getAuthority());
-    }
-
-    public static boolean isWhatsAppFile(Uri uri){
-        return "com.whatsapp.provider.media".equals(uri.getAuthority());
-    }
-
-    private static boolean isGoogleDriveUri(Uri uri) {
-        return "com.google.android.apps.docs.storage".equals(uri.getAuthority()) || "com.google.android.apps.docs.storage.legacy".equals(uri.getAuthority());
-    }
-
     public static boolean isMediaDocument(Uri uri) {
         return "com.android.providers.media.documents".equals(uri.getAuthority());
-    }
-    public static File makeEmptyFileIntoExternalStorageWithTitle(String title) {
-        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
-        return new File(root, title);
     }
     @SuppressLint("Range")
     public static String getFileName(Context context, Uri uri){
         String result = null;
         if (uri.getScheme().equals("content")) {
-            Cursor cursor = context.getContentResolver().query(uri, null, null, null, null);
-            try {
+            try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
                 if (cursor != null && cursor.moveToFirst()) {
                     result = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
                 }
-            } finally {
-                cursor.close();
             }
         }
         if (result == null) {
@@ -158,31 +105,6 @@ public class UriUtils {
             }
         }
         return result;
-    }
-    public static File saveFileIntoExternalStorageByUri(Context context, Uri uri) throws Exception {
-        InputStream inputStream = context.getContentResolver().openInputStream(uri);
-        int originalSize = inputStream.available();
-
-        BufferedInputStream bis = null;
-        BufferedOutputStream bos = null;
-        String fileName = getFileName(context, uri);
-        File file = makeEmptyFileIntoExternalStorageWithTitle(fileName);
-        bis = new BufferedInputStream(inputStream);
-        bos = new BufferedOutputStream(new FileOutputStream(
-                file, false));
-
-        byte[] buf = new byte[originalSize];
-        bis.read(buf);
-        do {
-            bos.write(buf);
-        } while (bis.read(buf) != -1);
-
-        bos.flush();
-        bos.close();
-        bis.close();
-
-        return file;
-
     }
 
     private static String getDataColumn(Context context, Uri uri, String selection, String[] selectionArgs) {

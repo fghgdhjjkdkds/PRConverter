@@ -7,10 +7,12 @@ public class AudioConvertingPack implements Serializable {
     private final File importFile;
     private final File exportFile;
     private final AudioStream audioStream;
-    public AudioConvertingPack(final File importFile, AudioStream audioStream, final File exportFile){
+    private final boolean onlyAudio;
+    public AudioConvertingPack(final File importFile, AudioStream audioStream, final File exportFile,final boolean onlyAudio){
         this.importFile = importFile;
         this.audioStream = audioStream;
         this.exportFile = exportFile;
+        this.onlyAudio = onlyAudio;
     }
 
     public File getExportFile() {
@@ -22,5 +24,9 @@ public class AudioConvertingPack implements Serializable {
     }
     public File getImportFile() {
         return importFile;
+    }
+
+    public boolean isOnlyAudio() {
+        return onlyAudio;
     }
 }

@@ -8,17 +8,19 @@ import android.content.IntentFilter;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
+import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.arthenica.ffmpegkit.FFmpegKit;
 import com.arthenica.ffmpegkit.FFmpegSession;
-import com.arthenica.ffmpegkit.Statistics;
+import com.purplerat.prconverter.BuildConfig;
 
 import java.io.File;
 
 public class AudioConverter implements Runnable{
+    private static final String TAG = "AudioConverter";
     private final Context context;
     private final AudioConvertingPack pack;
     private final AudioConverterCallback audioConverterCallback;
@@ -43,16 +45,18 @@ public class AudioConverter implements Runnable{
         String command;
         AudioStream audioStream= pack.getAudioStream();
         try {
-            command = String.format("-i \"%s\" -b:a %s -ar %s -ac %s \"%s\"",
+            command = String.format("-i \"%s\" %s %s %s %s \"%s\"",
                     pack.getImportFile().getAbsolutePath(),
-                    audioStream.getBitrate(),
-                    audioStream.getSampleRate(),
-                    audioStream.getChannel().getIntValue(),
+                    audioStream.getBitrate() == 0? "":"-b:a "+audioStream.getBitrate(),
+                    audioStream.getSampleRate() == 0? "":"-ar "+audioStream.getSampleRate(),
+                    audioStream.getChannel() == null? "":"-ac "+audioStream.getChannel().getIntValue(),
+                    pack.isOnlyAudio()?"-c:a copy":"",
                     pack.getExportFile().getAbsolutePath());
         } catch (Exception e) {
-            e.printStackTrace();
+            if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
             return null;
         }
+        if(BuildConfig.DEBUG)Log.d(TAG,command);
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         retriever.setDataSource(context, Uri.fromFile(pack.getImportFile()));
         float time = Float.parseFloat(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
@@ -64,18 +68,16 @@ public class AudioConverter implements Runnable{
             }else{
                 waiter[0] = 1;
             }
-        }, log->
-            System.out.println(log.getMessage()),
-                statistics-> {
-                    int percent = Math.round(statistics.getTime() / time * 100.0f);
-                    audioConverterCallback.onProgress(percent);
+        }, log-> {if(BuildConfig.DEBUG)Log.d(TAG,log.getMessage());}, statistics-> {
+            int percent = Math.round(statistics.getTime() / time * 100.0f);
+            audioConverterCallback.onProgress(percent);
         });
         while(waiter[0]==0){
             if(stop)fFmpegSession.cancel();
             try{
                 Thread.sleep(250);
             }catch (InterruptedException e){
-                e.printStackTrace();
+                if(BuildConfig.DEBUG)Log.e(TAG,e.getMessage());
             }
         }
         if(waiter[0] == -1){

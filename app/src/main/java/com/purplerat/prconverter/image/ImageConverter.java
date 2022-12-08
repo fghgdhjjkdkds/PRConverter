@@ -6,7 +6,10 @@ import android.graphics.Bitmap;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.webkit.MimeTypeMap;
+
+import com.purplerat.prconverter.BuildConfig;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -14,6 +17,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 public class ImageConverter implements Runnable{
+    private static final String TAG = "ImageConverter";
     private final Uri importFile;
     private final int x,y;
     private final File exportFile;
@@ -26,7 +30,6 @@ public class ImageConverter implements Runnable{
         this.y = y;
         this.exportFile = exportFile;
         this.imageConverterCallback = imageConverterCallback;
-        //System.out.println(importFile.getPath() + '\t' + x + '\t' + y + '\t' + exportFile.getAbsolutePath());
     }
     @Override
     public void run() {
@@ -37,7 +40,7 @@ public class ImageConverter implements Runnable{
         try {
             bitmap = MediaStore.Images.Media.getBitmap(context.getContentResolver(),importFile);
         } catch (IOException e) {
-            e.printStackTrace();
+            if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
             return null;
         }
         Bitmap exportBitmap = Bitmap.createScaledBitmap(bitmap, x, y,true);
@@ -53,7 +56,6 @@ public class ImageConverter implements Runnable{
                 imageFormat = Bitmap.CompressFormat.WEBP;
                 break;
             default:
-                //System.out.println(exportFile.getName().substring(exportFile.getName().lastIndexOf(".")));
                 return null;
         }
         try {
@@ -61,7 +63,7 @@ public class ImageConverter implements Runnable{
             MediaScannerConnection.scanFile(context,new String[]{exportFile.getPath()},new String[] {getMimeType(Uri.fromFile(exportFile))},null);
             return exportFile;
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
             return null;
         }
     }

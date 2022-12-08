@@ -8,18 +8,20 @@ import android.content.IntentFilter;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
+import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.arthenica.ffmpegkit.FFmpegKit;
 import com.arthenica.ffmpegkit.FFmpegSession;
-import com.arthenica.ffmpegkit.Statistics;
+import com.purplerat.prconverter.BuildConfig;
 import com.purplerat.prconverter.audio.AudioStream;
 
 import java.io.File;
 
 public class VideoConverter implements Runnable{
+    private static final String TAG = "VideoConverter";
     private final Context context;
     private final VideoConvertingPack pack;
     private final VideoConverterCallback videoConverterCallback;
@@ -45,25 +47,27 @@ public class VideoConverter implements Runnable{
         VideoStream videoStream = pack.getVideoStream();
         AudioStream audioStream = pack.getAudioStream();
         if(audioStream == null){
-            command = String.format("-i \"%s\" -an -s %sx%s -r %s -b:v %s \"%s\"",
+            command = String.format("-i \"%s\" -an %s %s %s %s \"%s\"",
                     pack.getImportFile().getAbsolutePath(),
-                    videoStream.getWidth(),
-                    videoStream.getHeight(),
-                    videoStream.getFps(),
-                    videoStream.getBitrate(),
+                    videoStream.getWidth() == 0? "":String.format("-s %sx%s",videoStream.getWidth(),videoStream.getHeight()),
+                    videoStream.getFps() == 0?"": "-r "+videoStream.getFps(),
+                    videoStream.getBitrate() == 0? "" : "-b:v " + videoStream.getBitrate(),
+                    videoStream.getWidth() == 0 && videoStream.getFps() == 0 && videoStream.getBitrate() == 0? "-c copy":"",
                     pack.getExportFile().getAbsolutePath());
         }else{
-            command = String.format("-i \"%s\" -s %sx%s -r %s -b:v %s -b:a %s -ar %s -ac %s \"%s\"",
+            command = String.format("-i \"%s\" %s %s %s %s %s %s %s %s \"%s\"",
                     pack.getImportFile().getAbsolutePath(),
-                    videoStream.getWidth(),
-                    videoStream.getHeight(),
-                    videoStream.getFps(),
-                    videoStream.getBitrate(),
-                    audioStream.getBitrate(),
-                    audioStream.getSampleRate(),
-                    audioStream.getChannel().getIntValue(),
+                    videoStream.getWidth() == 0? "":String.format("-s %sx%s",videoStream.getWidth(),videoStream.getHeight()),
+                    videoStream.getFps() == 0?"": "-r "+videoStream.getFps(),
+                    videoStream.getBitrate() == 0? "" : "-b:v " + videoStream.getBitrate(),
+                    videoStream.getWidth() == 0 && videoStream.getFps() == 0 && videoStream.getBitrate() == 0? "-c:v copy":"",
+                    audioStream.getBitrate() == 0? "" : "-b:a " + audioStream.getBitrate(),
+                    audioStream.getSampleRate() == 0? "": "-ar "+audioStream.getSampleRate(),
+                    audioStream.getChannel() == null? "" : "-ac "+audioStream.getChannel().getIntValue(),
+                    audioStream.getBitrate() == 0 && audioStream.getSampleRate() == 0 && audioStream.getChannel() == null? "-c:a copy":"",
                     pack.getExportFile().getAbsolutePath());
         }
+        if(BuildConfig.DEBUG)Log.d(TAG,command);
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         retriever.setDataSource(context, Uri.fromFile(pack.getImportFile()));
         float time = Float.parseFloat(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
@@ -75,9 +79,7 @@ public class VideoConverter implements Runnable{
             }else{
                 waiter[0] = 1;
             }
-        }, log->
-            System.out.println(log.getMessage())
-        , statistics-> {
+        }, log-> {if (BuildConfig.DEBUG) Log.d(TAG,log.getMessage());}, statistics-> {
             int percent = Math.round(statistics.getTime() / time * 100.0f);
             videoConverterCallback.onProgress(percent);
         });
@@ -86,7 +88,7 @@ public class VideoConverter implements Runnable{
             try{
                 Thread.sleep(250);
             }catch (InterruptedException e){
-                e.printStackTrace();
+                if(BuildConfig.DEBUG)Log.e(TAG,e.getMessage());
             }
         }
         if(waiter[0] == -1){

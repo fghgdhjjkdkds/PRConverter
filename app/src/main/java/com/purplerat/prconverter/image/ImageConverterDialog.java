@@ -1,13 +1,18 @@
 package com.purplerat.prconverter.image;
 
+import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
@@ -19,6 +24,8 @@ import androidx.fragment.app.DialogFragment;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.purplerat.prconverter.R;
+
+import java.util.Objects;
 
 public class ImageConverterDialog extends DialogFragment {
     private final boolean[] errors = new boolean[]{false,false};
@@ -32,12 +39,18 @@ public class ImageConverterDialog extends DialogFragment {
         this.imageFormat = imageFormat;
         this.imageConverterDialogCallback = imageConverterDialogCallback;
     }
+    @SuppressLint("ClickableViewAccessibility")
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
+        InputMethodManager inputMethodManager = (InputMethodManager) requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE);
         AlertDialog.Builder dialog = new AlertDialog.Builder(getActivity(), R.style.MyDialogTheme);
+        dialog.setOnKeyListener((dialogInterface, i, keyEvent) -> i == KeyEvent.KEYCODE_BACK && keyEvent.getAction() == KeyEvent.ACTION_UP);
         View rootView = getLayoutInflater().inflate(R.layout.image_converter_dialog_view,(ViewGroup) getView(),false);
-
+        rootView.findViewById(R.id.image_converter_focus_view).setOnTouchListener((View view, MotionEvent motionEvent) -> {
+            if(inputMethodManager!=null&&inputMethodManager.isActive())inputMethodManager.hideSoftInputFromWindow(rootView.getWindowToken(), 0);
+            return false;
+        });
         TextInputLayout image_dialog_width_box = rootView.findViewById(R.id.image_dialog_width_box);
         TextInputEditText image_dialog_width_text = rootView.findViewById(R.id.image_dialog_width_text);
         TextInputLayout image_dialog_height_box = rootView.findViewById(R.id.image_dialog_height_box);
@@ -58,34 +71,45 @@ public class ImageConverterDialog extends DialogFragment {
         dialog.setPositiveButton(android.R.string.ok,(v,i)->{});
         dialog.setNegativeButton(android.R.string.cancel,(v,i)->imageFormat = null);
 
-        AlertDialog alertDialog = dialog.create();
+        AlertDialog alertDialog = dialog.show();
         alertDialog.setCanceledOnTouchOutside(false);
-        alertDialog.setOnShowListener(v->{
-            Button positiveButton = alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
-            positiveButton.setOnClickListener(view -> {
-                for(boolean e : errors){
-                    if(e){
-                        return;
-                    }
+
+        int buttonPanelId = getResources().getIdentifier("buttonPanel","id","android");
+        final View buttonPanel=alertDialog.findViewById(buttonPanelId);
+        if (buttonPanel!=null){
+            buttonPanel.setBackgroundColor(getResources().getColor(R.color.bg_color, requireActivity().getTheme()));
+        }
+
+        int topPanelId = getResources().getIdentifier("topPanel","id","android");
+        final View topPanel =alertDialog.findViewById(topPanelId);
+        if (topPanel!=null){
+            topPanel.setBackgroundColor(getResources().getColor(R.color.primary_color,requireActivity().getTheme()));
+        }
+        Button positiveButton = alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
+        positiveButton.setOnClickListener(view -> {
+            for(boolean e : errors){
+                if(e){
+                    return;
                 }
-                x = Integer.parseInt(image_dialog_width_text.getText().toString());
-                y = Integer.parseInt(image_dialog_height_text.getText().toString());
-                switch (image_dialog_format.getText().toString()){
-                    case "webp":
-                        imageFormat = ImageFormats.WEBP;
-                        break;
-                    case"png":
-                        imageFormat = ImageFormats.PNG;
-                        break;
-                    case "jpeg":
-                        imageFormat = ImageFormats.JPEG;
-                        break;
-                    default:
-                        imageFormat = null;
-                }
-                dismiss();
-            });
+            }
+            x = Integer.parseInt(Objects.requireNonNull(image_dialog_width_text.getText()).toString());
+            y = Integer.parseInt(Objects.requireNonNull(image_dialog_height_text.getText()).toString());
+            switch (image_dialog_format.getText().toString()){
+                case "webp":
+                    imageFormat = ImageFormats.WEBP;
+                    break;
+                case"png":
+                    imageFormat = ImageFormats.PNG;
+                    break;
+                case "jpeg":
+                    imageFormat = ImageFormats.JPEG;
+                    break;
+                default:
+                    imageFormat = null;
+            }
+            dismiss();
         });
+
         return alertDialog;
     }
     private class TW implements TextWatcher {

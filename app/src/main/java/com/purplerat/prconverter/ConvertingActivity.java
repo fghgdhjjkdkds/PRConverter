@@ -4,11 +4,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -22,6 +24,7 @@ import com.purplerat.prconverter.video.VideoConvertingService;
 import java.io.File;
 
 public class ConvertingActivity extends AppCompatActivity {
+    private static final String TAG = "ConvertingActivity";
     private View rootView = null;
     private ProgressBar progressBar = null;
     @Override
@@ -32,19 +35,54 @@ public class ConvertingActivity extends AppCompatActivity {
         rootView = findViewById(android.R.id.content).getRootView();
         progressBar = rootView.findViewById(R.id.progressBar);
         progressBar.setProgress(0);
+
         LocalBroadcastManager bm = LocalBroadcastManager.getInstance(this);
+        bm.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent != null) {
+                    if(intent.hasExtra("progress")){
+                        int progress = intent.getIntExtra("progress",0);
+                        if(progressBar!=null){
+                            progressBar.setProgress(progress);
+                        }
+                    }
+                }
+            }
+        }, new IntentFilter("progress"));
 
-        IntentFilter actionOnProgressReceiver = new IntentFilter();
-        IntentFilter actionOnCompleteReceiver = new IntentFilter();
-        actionOnProgressReceiver.addAction("progress");
-        actionOnCompleteReceiver.addAction("complete");
-        bm.registerReceiver(OnProgressReceive , actionOnProgressReceiver);
-        bm.registerReceiver(OnCompleteReceive,actionOnCompleteReceiver);
-
-        String action = getIntent().getStringExtra("action");
+        bm.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent != null) {
+                    if(intent.hasExtra("file") && rootView != null){
+                        if(intent.getSerializableExtra("file")==null){
+                            runOnUiThread(()->Snackbar.make(rootView,"Error while converting",Snackbar.LENGTH_SHORT).show());
+                        }else{
+                            File file = (File) intent.getSerializableExtra("file");
+                            runOnUiThread(()->Snackbar.make(rootView,"Successfully converted as "+file.getAbsolutePath(),Snackbar.LENGTH_SHORT).show());
+                        }
+                    }
+                    new Thread(()->{
+                        try{
+                            Thread.sleep(1500);
+                        } catch (InterruptedException e) {
+                            if(BuildConfig.DEBUG) Log.e(TAG,e.getMessage());
+                        }
+                        finish();
+                    }).start();
+                }else{
+                    finish();
+                }
+            }
+        },new IntentFilter("complete"));
 
         Button stop_converting_button = rootView.findViewById(R.id.stop_converting_button);
         stop_converting_button.setOnClickListener(v-> LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent("com.purplerat.prconverter.stop_converting")));
+
+        if(isServiceRunning(AudioConvertingService.class) || isServiceRunning(VideoConvertingService.class))return;
+
+        String action = getIntent().getStringExtra("action");
 
         switch (action){
             case "audio":
@@ -59,53 +97,20 @@ public class ConvertingActivity extends AppCompatActivity {
                 videoIntent.putExtra("pack",videoConvertingPack);
                 startService(videoIntent);
                 break;
-            case "resumption":
-                break;
             default:
                 finish();
                 break;
         }
     }
-    private final BroadcastReceiver OnProgressReceive = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent != null) {
-                if(intent.hasExtra("progress")){
-                    int progress = intent.getIntExtra("progress",0);
-                    if(progressBar!=null){
-                        progressBar.setProgress(progress);
-                    }
-                }
+    private boolean isServiceRunning(Class<?> serviceClass) {
+        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(service.service.getClassName())) {
+                return true;
             }
         }
-    };
-    private final BroadcastReceiver OnCompleteReceive = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent != null) {
-                if(intent.hasExtra("file")){
-                    if(intent.getSerializableExtra("file")==null){
-                        if(rootView != null) {
-                            runOnUiThread(()->Snackbar.make(rootView,"Error while converting",Snackbar.LENGTH_SHORT).show());
-                        }
-                    }else{
-                        File file = (File) intent.getSerializableExtra("file");
-                        if(rootView != null) {
-                            runOnUiThread(()->Snackbar.make(rootView,"Successfully converted as "+file.getAbsolutePath(),Snackbar.LENGTH_SHORT).show());
-                        }
-                    }
-                }
-                new Thread(()->{
-                    try{
-                        Thread.sleep(1500);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    finish();
-                }).start();
-            }
-        }
-    };
+        return false;
+    }
 
     @Override
     public void onBackPressed() {}
